@@ -247,7 +247,7 @@
             '<div class="brand-te">\u0C2E\u0C28 \u0C39\u0C15\u0C4D\u0C15\u0C41</div>' +
           '</div>' +
           '<nav>' + links + '</nav>' +
-          '<div class="sidebar-footer">' + escapeHTML(t('demoNotice')) + '</div>' +
+          '<div class="sidebar-footer">' + escapeHTML(t('sidebarFooter')) + '</div>' +
         '</aside>' +
         '<div class="main-column">' +
           '<header class="topbar">' +

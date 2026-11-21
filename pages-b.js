@@ -45,13 +45,16 @@ window.MH_PAGES = window.MH_PAGES || {};
   function loadingHtml() { return '<div class="loading-state"><span class="spinner"></span> ' + esc(T('loadingState', 'Loading...')) + '</div>'; }
   function errorHtml() { return '<div class="error-state">' + esc(T('errorState', 'Could not load scholarships.')) + ' <button class="btn btn-ghost btn-small" type="button" data-action="retry">' + esc(T('retry', 'Retry')) + '</button></div>'; }
   function notFoundHtml() { return '<div class="error-state">' + esc(T('notFound', 'Scholarship not found')) + ' <a class="btn btn-ghost btn-small" href="#/discover">' + esc(T('backToList', 'Back')) + '</a></div>'; }
+  function demoBannerHtml() {
+    return '<div class="notice" role="status">' + esc(T('demoModeBody', 'Demo mode: live scholarship data is unavailable. The records shown are unverified samples. Do not rely on them.')) + '</div>';
+  }
   function optionsFor(values, allLabel) { return '<option value="">' + esc(allLabel) + '</option>' + values.map(function (v) { return '<option value="' + esc(v) + '">' + esc(v) + '</option>'; }).join(''); }
 
   function discover(el) {
     var filterAll = T('filterAll', 'All');
     el.innerHTML =
       '<div class="page-header"><div><h1>' + esc(T('discoverTitle', 'Discover')) + '</h1></div></div>' +
-      '<div class="notice">' + esc(T('demoNotice', window.MH_DATA.notice)) + '</div>' +
+      '<div id="mh-banner"></div>' +
       '<div class="filters">' +
         '<input class="input" type="search" id="mh-search" placeholder="' + esc(T('searchPlaceholder', 'Search')) + '">' +
         '<select class="select" id="mh-cat">' + optionsFor([], filterAll) + '</select>' +
@@ -74,8 +77,9 @@ window.MH_PAGES = window.MH_PAGES || {};
     el.querySelector('#mh-search').addEventListener('input', update);
     el.querySelector('#mh-cat').addEventListener('change', update);
     el.querySelector('#mh-level').addEventListener('change', update);
-    window.MH_API.listScholarships().then(function (items) {
-      all = items;
+    window.MH_API.listScholarshipsStatus().then(function (r) {
+      all = r.items;
+      if (r.source === 'demo') { el.querySelector('#mh-banner').innerHTML = demoBannerHtml(); }
       el.querySelector('#mh-cat').innerHTML = optionsFor(uniq(all.map(function (s) { return s.category; })), filterAll);
       el.querySelector('#mh-level').innerHTML = optionsFor(uniq(all.map(function (s) { return s.level; })), filterAll);
       update();
@@ -124,15 +128,15 @@ window.MH_PAGES = window.MH_PAGES || {};
       '<div class="page-header"><div><h1>' + esc(T('detailsTitle', 'Details')) + '</h1></div></div>' +
       '<div id="mh-detail-body"></div>';
     var body = el.querySelector('#mh-detail-body');
-    if (!/^\d+$/.test(id)) { body.innerHTML = notFoundHtml(); return; }
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) { body.innerHTML = notFoundHtml(); return; }
     body.innerHTML = loadingHtml();
-    window.MH_API.getScholarship(id).then(function (s) {
-      body.innerHTML = detailHtml(s);
+    window.MH_API.getScholarshipStatus(id).then(function (r) {
+      body.innerHTML = (r.source === 'demo' ? demoBannerHtml() : '') + detailHtml(r.item);
       var btn = body.querySelector('[data-action="apply"]');
       if (btn) btn.addEventListener('click', function () {
         window.MH.store.set(function (st) {
-          if (!st.applications.some(function (a) { return a.scholarshipId === s.id; })) {
-            st.applications.push({ id: 'app-' + s.id + '-' + Date.now(), scholarshipId: s.id, status: 'Draft',
+          if (!st.applications.some(function (a) { return a.scholarshipId === r.item.id; })) {
+            st.applications.push({ id: 'app-' + r.item.id + '-' + Date.now(), scholarshipId: r.item.id, status: 'Draft',
               updatedOn: today(), notes: 'Created from backend record' });
           }
           return st;
