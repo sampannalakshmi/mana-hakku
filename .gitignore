@@ -1,0 +1,42 @@
+# Secrets and credentials - never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.*
+credentials.*
+service-role*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Local/internal tool state
+.codebenders/
+
+# Databases and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Archives and backups
+*.zip
+*.tar
+*.bak
+
+# Node (if added later)
+node_modules/
+
+# Editors and OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
