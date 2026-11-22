@@ -1,5 +1,5 @@
 window.MH_API = (function () {
-  var BASE_URL = 'http://127.0.0.1:8002';
+  var BASE_URL = window.MH_API_BASE_URL || 'http://127.0.0.1:8002';
   var TIMEOUT_MS = 8000;
   var ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
@@ -103,11 +103,90 @@ window.MH_API = (function () {
     return getScholarshipStatus(id).then(function (r) { return r.item; });
   }
 
-  return {
+  // ---------------- AUTHENTICATION ----------------
+
+  function authRequest(path, method, body, token) {
+    return fetch(BASE_URL + path, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(token ? { Authorization: 'Bearer ' + token } : {})
+      },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok) {
+          var error = new Error(data.detail || 'Authentication request failed.');
+          error.status = res.status;
+          throw error;
+        }
+        return data;
+      });
+    });
+  }
+
+  function register(fullName, email, password) {
+    return authRequest('/api/auth/register', 'POST', {
+      full_name: fullName,
+      email: email,
+      password: password
+    });
+  }
+
+  function login(email, password) {
+    return authRequest('/api/auth/login', 'POST', {
+      email: email,
+      password: password
+    });
+  }
+
+  function getMyProfile(token) {
+    return authRequest('/api/auth/me', 'GET', null, token);
+  }function createScholarship(data, token) {
+  return authRequest('/api/scholarships', 'POST', {
+    name: data.name,
+    provider: data.provider || null,
+    description: data.description || null,
+    eligibility: data.eligibility || null,
+    deadline: data.deadline || null,
+    official_url: data.official_url || null,
+    is_verified: !!data.is_verified
+  }, token);
+}
+  // ---------------- APPLICATIONS ----------------
+
+function createApplication(scholarshipId, token) {
+  return authRequest('/api/applications', 'POST', {
+    scholarship_id: Number(scholarshipId)
+  }, token);
+}
+
+function getMyApplications(token) {
+  return authRequest('/api/applications', 'GET', null, token);
+}
+  function logout() {
+  sessionStorage.removeItem('mh_access_token');
+  return true;
+}
+
+    return {
     baseUrl: BASE_URL,
+
+    // Scholarship functions
     listScholarships: listScholarships,
     listScholarshipsStatus: listScholarshipsStatus,
     getScholarship: getScholarship,
-    getScholarshipStatus: getScholarshipStatus
+    getScholarshipStatus: getScholarshipStatus,
+
+    // Authentication functions
+    register: register,
+    login: login,
+    getMyProfile: getMyProfile,
+createApplication: createApplication,
+getMyApplications: getMyApplications,
+createScholarship: createScholarship,
+logout: logout
+
   };
 })();

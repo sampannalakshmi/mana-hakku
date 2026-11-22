@@ -10,7 +10,16 @@
   var STATE_KEY = 'mh_state_v1';
   var LOADING_DELAY_MS = 250;
   var SUPPORTED_LANGS = ['en', 'te'];
-  var PAGE_ROUTES = ['dashboard', 'profile', 'assistant', 'discover', 'tracker', 'admin'];
+  var PAGE_ROUTES = [
+  'dashboard',
+  'profile',
+  'assistant',
+  'discover',
+  'tracker',
+  'admin',
+  'login',
+  'register'
+];
 
   // Sidebar navigation: [route name, i18n key for label]
   var NAV = [
@@ -24,14 +33,16 @@
 
   // Topbar / document title label keys per route
   var ROUTE_LABELS = {
-    dashboard: 'navDashboard',
-    profile: 'navProfile',
-    assistant: 'navAssistant',
-    discover: 'navDiscover',
-    scholarship: 'navDiscover',
-    tracker: 'navTracker',
-    admin: 'navAdmin'
-  };
+  dashboard: 'navDashboard',
+  profile: 'navProfile',
+  assistant: 'navAssistant',
+  discover: 'navDiscover',
+  scholarship: 'navDiscover',
+  tracker: 'navTracker',
+  admin: 'navAdmin',
+  login: 'Login',
+  register: 'Register'
+};
 
   var renderToken = 0;
 
@@ -247,6 +258,7 @@
             '<div class="brand-te">\u0C2E\u0C28 \u0C39\u0C15\u0C4D\u0C15\u0C41</div>' +
           '</div>' +
           '<nav>' + links + '</nav>' +
+          '<button class="nav-link" type="button" data-logout="true">Logout</button>' +
           '<div class="sidebar-footer">' + escapeHTML(t('sidebarFooter')) + '</div>' +
         '</aside>' +
         '<div class="main-column">' +
@@ -289,6 +301,19 @@
     if (!app) { return; }
 
     var route = parseRoute();
+    var publicRoutes = ['landing', 'login', 'register'];
+var accessToken = sessionStorage.getItem('mh_access_token');
+
+if (publicRoutes.indexOf(route.name) === -1 && !accessToken) {
+  navigate('#/login');
+  return;
+}
+
+if (route.name === 'admin' &&
+    sessionStorage.getItem('mh_user_role') !== 'admin') {
+  navigate('#/dashboard');
+  return;
+}
     var token = ++renderToken;
     var container;
 
@@ -296,12 +321,15 @@
     setDocumentTitle(route);
 
     if (route.name === 'landing') {
-      app.innerHTML = '<div class="mh-landing"></div>';
-      container = app.querySelector('.mh-landing');
-    } else {
-      app.innerHTML = shellHTML(route);
-      container = app.querySelector('.main');
-    }
+  app.innerHTML = '<div class="mh-landing"></div>';
+  container = app.querySelector('.mh-landing');
+} else if (route.name === 'login' || route.name === 'register') {
+  app.innerHTML = '<div class="mh-auth"></div>';
+  container = app.querySelector('.mh-auth');
+} else {
+  app.innerHTML = shellHTML(route);
+  container = app.querySelector('.main');
+}
 
     container.innerHTML = loadingHTML();
 
@@ -316,6 +344,12 @@
   function onClick(event) {
     var target = event.target;
     if (!target || !target.closest) { return; }
+    var logoutBtn = target.closest('[data-logout]');
+if (logoutBtn) {
+  window.MH_API.logout();
+  navigate('#/login');
+  return;
+}
 
     var langBtn = target.closest('[data-lang]');
     if (langBtn) {

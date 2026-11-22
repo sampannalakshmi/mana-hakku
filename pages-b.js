@@ -156,80 +156,192 @@ window.MH_PAGES = window.MH_PAGES || {};
 
 
   /* 3. Tracker */
-  function tracker(el, params) {
-    var apps = window.MH.store.get().applications || [];
-    var head = '<div class="page-header"><div><h1>' + esc(T('trackerTitle', 'Tracker')) + '</h1></div>' +
-      '<div class="actions"><button class="btn btn-ghost btn-small" type="button" data-action="reset">' + esc(T('resetDemo', 'Reset demo')) + '</button></div></div>' +
-      '<div class="notice">' + esc(T('demoNotice', window.MH_DATA.notice)) + '</div>';
-    if (!apps.length) {
-      el.innerHTML = head + '<div class="empty-state">' + esc(T('emptyState', 'Nothing here yet')) + '</div>';
-    } else {
-      var rows = apps.map(function (a) {
-        var sc = findScholarship(a.scholarshipId);
-        var nm = sc ? nameOf(sc) : a.scholarshipId;
-        return '<tr><td>' + esc(nm) + '</td>' +
-          '<td><span class="badge-status ' + (STATUS_CLASS[a.status] || '') + '">' + esc(a.status) + '</span></td>' +
-          '<td>' + esc(a.updatedOn || '') + '</td>' +
-          '<td><select class="select" data-app-select="' + esc(a.id) + '">' + statusOptions(a.status) + '</select> ' +
-          '<button class="btn btn-small btn-primary" type="button" data-action="mark" data-app-id="' + esc(a.id) + '">' + esc(T('markStatus', 'Mark')) + '</button></td></tr>';
-      }).join('');
-      var timeline = apps.slice().sort(function (x, y) { return (y.updatedOn || '').localeCompare(x.updatedOn || ''); })
-        .map(function (a) {
-          var sc = findScholarship(a.scholarshipId);
-          return '<div class="timeline-item"><strong>' + esc(sc ? nameOf(sc) : a.scholarshipId) + '</strong><div>' +
-            esc(a.status) + ' - ' + esc(a.updatedOn || '') + '</div></div>';
-        }).join('');
-      el.innerHTML = head +
-        '<div class="table-wrap"><table class="table"><thead><tr><th>Scholarship</th><th>' + esc(T('statusLabel', 'Status')) +
-        '</th><th>Updated</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-        '<h2>Timeline</h2><div class="timeline">' + timeline + '</div>';
-    }
-    el.onclick = function (ev) {
-      var btn = ev.target.closest && ev.target.closest('button[data-action]');
-      if (!btn) return;
-      if (btn.getAttribute('data-action') === 'mark') {
-        var id = btn.getAttribute('data-app-id');
-        var sel = el.querySelector('select[data-app-select="' + id + '"]');
-        window.MH.store.updateApplicationStatus(id, sel.value);
-        tracker(el, params);
-      } else if (btn.getAttribute('data-action') === 'reset') {
-        window.MH.store.reset();
-        tracker(el, params);
-      }
-    };
+function tracker(el, params) {
+  var token = sessionStorage.getItem('mh_access_token');
+
+  var head = '<div class="page-header"><div><h1>' +
+    esc(T('trackerTitle', 'Tracker')) +
+    '</h1></div></div>';
+
+  if (!token) {
+    el.innerHTML = head +
+      '<div class="empty-state">Please log in to view your applications.</div>';
+    return;
   }
 
+  el.innerHTML = head +
+    '<div class="loading">Loading your applications...</div>';
+
+  window.MH_API.getMyApplications(token)
+    .then(function (apps) {
+      apps = Array.isArray(apps) ? apps : [];
+
+      if (!apps.length) {
+        el.innerHTML = head +
+          '<div class="empty-state">No applications found. Apply for a scholarship to get started.</div>';
+        return;
+      }
+
+      var rows = apps.map(function (a) {
+        var status = String(a.status || 'draft');
+        var displayStatus = status.charAt(0).toUpperCase() +
+          status.slice(1).toLowerCase();
+        var updated = a.submitted_at || a.created_at || '';
+        var scholarshipName = 'Scholarship #' + a.scholarship_id;
+
+        return '<tr>' +
+          '<td>' + esc(scholarshipName) + '</td>' +
+          '<td><span class="badge-status ' +
+          (STATUS_CLASS[displayStatus] || '') + '">' +
+          esc(displayStatus) + '</span></td>' +
+          '<td>' + esc(updated ? new Date(updated).toLocaleDateString() : '') +
+          '</td></tr>';
+      }).join('');
+
+      el.innerHTML = head +
+        '<div class="table-wrap"><table class="table">' +
+        '<thead><tr><th>Scholarship</th><th>' +
+        esc(T('statusLabel', 'Status')) +
+        '</th><th>Created / Submitted</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div>';
+    })
+    .catch(function (err) {
+      el.innerHTML = head +
+        '<div class="empty-state">Could not load applications. Please refresh and try again.</div>';
+    });
+}
+
   /* 4. Admin */
-  function admin(el) {
-    var list = scholarships();
-    var apps = window.MH.store.get().applications || [];
-    var now = today();
-    var expired = list.filter(function (s) { return s.deadline && s.deadline < now; }).length;
-    var statusCounts = (window.MH_DATA.statuses || []).map(function (st) {
-      return '<li>' + esc(st) + ': ' + apps.filter(function (a) { return a.status === st; }).length + '</li>';
-    }).join('');
-    var stat = function (value, label) {
-      return '<div class="stat-card"><span class="badge badge-sample">' + esc(T('sampleBadge', 'SAMPLE')) + '</span>' +
-        '<div class="stat-value">' + value + '</div><div class="stat-label">' + esc(label) + '</div></div>';
-    };
-    el.innerHTML =
-      '<div class="page-header"><div><h1>' + esc(T('adminTitle', 'Admin')) + '</h1></div></div>' +
-      '<div class="notice">' + esc(T('demoNotice', window.MH_DATA.notice)) + '</div>' +
-      '<div class="admin-grid">' +
-        stat(list.length, 'Total scholarships (demo)') +
-        stat(apps.length, 'Total applications (demo)') +
-        stat(expired, 'Expired deadlines (demo)') +
+function admin(el) {
+  el.innerHTML =
+    '<div class="page-header"><div><h1>Admin Dashboard</h1></div></div>' +
+
+    '<div class="card">' +
+      '<div class="card-title">Add New Scholarship</div>' +
+      '<div class="card-body">' +
+        '<form id="mh-add-scholarship">' +
+
+          '<div class="field">' +
+            '<label for="mh-sch-name">Scholarship Name *</label>' +
+            '<input class="input" id="mh-sch-name" required maxlength="200">' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<label for="mh-sch-provider">Provider</label>' +
+            '<input class="input" id="mh-sch-provider" maxlength="200">' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<label for="mh-sch-description">Description</label>' +
+            '<textarea class="input" id="mh-sch-description"></textarea>' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<label for="mh-sch-eligibility">Eligibility</label>' +
+            '<textarea class="input" id="mh-sch-eligibility"></textarea>' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<label for="mh-sch-deadline">Deadline</label>' +
+            '<input class="input" id="mh-sch-deadline" type="date">' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<label for="mh-sch-url">Official URL</label>' +
+            '<input class="input" id="mh-sch-url" type="url">' +
+          '</div>' +
+
+          '<div class="field">' +
+            '<label><input id="mh-sch-verified" type="checkbox"> Verified</label>' +
+          '</div>' +
+
+          '<button class="btn btn-primary" type="submit">Add Scholarship</button>' +
+          '<p id="mh-sch-message" role="status"></p>' +
+
+        '</form>' +
       '</div>' +
-      '<div class="card"><div class="card-title">Status breakdown (demo)</div><div class="card-body"><ul>' + statusCounts + '</ul></div></div>' +
-      '<div class="card"><div class="card-title">Scholarship records (demo)</div><div class="card-body"><div class="table-wrap"><table class="table">' +
-        '<thead><tr><th>Name</th><th>Category</th><th>Level</th><th>Deadline</th><th>Verified</th><th>Source</th></tr></thead><tbody>' +
-        list.map(function (s) {
-          return '<tr><td>' + esc(s.name) + '</td><td>' + esc(s.category) + '</td><td>' + esc(s.level) + '</td><td>' +
-            fmtDate(s.deadline) + '</td><td>No - not verified</td><td>' + esc(s.source) + '</td></tr>';
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="card-title">Scholarship Management</div>' +
+      '<div class="card-body" id="mh-admin-scholarships">Loading scholarships...</div>' +
+    '</div>';
+
+  var body = el.querySelector('#mh-admin-scholarships');
+  var form = el.querySelector('#mh-add-scholarship');
+  var message = el.querySelector('#mh-sch-message');
+
+  function loadScholarships() {
+    body.textContent = 'Loading scholarships...';
+
+    window.MH_API.listScholarshipsStatus().then(function (result) {
+      if (!el.isConnected) return;
+
+      if (result.source === 'demo') {
+        body.innerHTML = '<p>Backend unavailable. Showing demo records only.</p>';
+        return;
+      }
+
+      if (result.items.length === 0) {
+        body.innerHTML = '<p>No scholarships found.</p>';
+        return;
+      }
+
+      body.innerHTML =
+        '<p>Total scholarships: <strong>' + result.items.length + '</strong></p>' +
+        '<div class="table-wrap"><table class="table">' +
+        '<thead><tr><th>ID</th><th>Name</th><th>Provider</th><th>Deadline</th><th>Verified</th></tr></thead>' +
+        '<tbody>' +
+        result.items.map(function (s) {
+          return '<tr>' +
+            '<td>' + esc(s.id) + '</td>' +
+            '<td>' + esc(s.name) + '</td>' +
+            '<td>' + esc(s.provider || 'Not provided') + '</td>' +
+            '<td>' + esc(s.deadline || 'Not provided') + '</td>' +
+            '<td>' + (s.verified ? 'Yes' : 'No') + '</td>' +
+            '</tr>';
         }).join('') +
-        '</tbody></table></div></div></div>' +
-      '<p class="muted">Records must be checked against official notifications before publishing. This view shows no personal student data.</p>';
+        '</tbody></table></div>';
+    }).catch(function () {
+      body.textContent = 'Unable to load scholarships.';
+    });
   }
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+
+    var button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    message.textContent = 'Saving scholarship...';
+
+    var data = {
+      name: form.querySelector('#mh-sch-name').value.trim(),
+      provider: form.querySelector('#mh-sch-provider').value.trim(),
+      description: form.querySelector('#mh-sch-description').value.trim(),
+      eligibility: form.querySelector('#mh-sch-eligibility').value.trim(),
+      deadline: form.querySelector('#mh-sch-deadline').value || null,
+      official_url: form.querySelector('#mh-sch-url').value.trim(),
+      is_verified: form.querySelector('#mh-sch-verified').checked
+    };
+
+    var token = sessionStorage.getItem('mh_access_token');
+
+    window.MH_API.createScholarship(data, token)
+      .then(function () {
+        form.reset();
+        message.textContent = 'Scholarship added successfully!';
+        loadScholarships();
+      })
+      .catch(function (error) {
+        message.textContent = error.message || 'Unable to add scholarship.';
+      })
+      .then(function () {
+        button.disabled = false;
+      });
+  });
+
+  loadScholarships();
+}
 
   window.MH_PAGES.discover = discover;
   window.MH_PAGES.scholarship = scholarship;
