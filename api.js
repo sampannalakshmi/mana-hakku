@@ -1,5 +1,5 @@
 window.MH_API = (function () {
-  var BASE_URL = window.MH_API_BASE_URL || 'http://127.0.0.1:8002';
+  var BASE_URL = window.MH_API_BASE_URL || 'https://mana-hakku-backend.onrender.com';
   var TIMEOUT_MS = 8000;
   var ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
