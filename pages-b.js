@@ -132,17 +132,36 @@ window.MH_PAGES = window.MH_PAGES || {};
     body.innerHTML = loadingHtml();
     window.MH_API.getScholarshipStatus(id).then(function (r) {
       body.innerHTML = (r.source === 'demo' ? demoBannerHtml() : '') + detailHtml(r.item);
-      var btn = body.querySelector('[data-action="apply"]');
-      if (btn) btn.addEventListener('click', function () {
-        window.MH.store.set(function (st) {
-          if (!st.applications.some(function (a) { return a.scholarshipId === r.item.id; })) {
-            st.applications.push({ id: 'app-' + r.item.id + '-' + Date.now(), scholarshipId: r.item.id, status: 'Draft',
-              updatedOn: today(), notes: 'Created from backend record' });
-          }
-          return st;
-        });
-        body.querySelector('#mh-apply-msg').innerHTML = esc(T('applyNow', 'Apply')) + ' OK - <a href="#/tracker">' + esc(T('navTracker', 'Tracker')) + '</a>';
-      });
+      
+var btn = body.querySelector('[data-action="apply"]');
+
+if (btn) btn.addEventListener('click', function () {
+  var token = sessionStorage.getItem('mh_access_token');
+  var msg = body.querySelector('#mh-apply-msg');
+
+  if (!token) {
+    msg.textContent = 'Please log in to apply.';
+    return;
+  }
+
+  btn.disabled = true;
+  msg.textContent = 'Submitting your application...';
+
+  window.MH_API.createApplication(r.item.id, token)
+    .then(function () {
+      msg.innerHTML =
+        'Application submitted successfully! - ' +
+        '<a href="#/tracker">View Tracker</a>';
+    })
+    .catch(function (err) {
+      msg.textContent = err.message ||
+        'Unable to submit application. Please try again.';
+    })
+    .then(function () {
+      btn.disabled = false;
+    });
+});
+
     }).catch(function (err) {
       if (err && err.status === 404) {
         body.innerHTML = notFoundHtml();
