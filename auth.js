@@ -86,8 +86,8 @@ return window.MH_API.getMyProfile(result.access_token);
             '<input class="input" id="register-email" type="email" required autocomplete="email">' +
           '</div>' +
           '<div class="field">' +
-            '<label for="register-password">' + (isTelugu ? 'పాస్‌వర్డ్ (కనీసం 8 అక్షరాలు)' : 'Password (at least 8 characters)') + '</label>' +
-            '<input class="input" id="register-password" type="password" minlength="8" maxlength="128" required autocomplete="new-password">' +
+            '<label for="register-password">' + (isTelugu ? 'పాస్‌వర్డ్ (కనీసం 12 అక్షరాలు)' : 'Password (at least 12 characters)') + '</label>' +
+            '<input class="input" id="register-password" type="password" minlength="12" maxlength="128" required autocomplete="new-password">' +
           '</div>' +
           '<div class="form-actions">' +
             '<button class="btn btn-primary" type="submit">' +
@@ -127,8 +127,18 @@ setTimeout(function () {
 }, 1500);;
         })
         .catch(function (error) {
-          status.textContent = error.message || 'Registration failed. Please try again.';
-        });
+  var message = error.message;
+
+  if (Array.isArray(message)) {
+    message = message.map(function (item) {
+      return item.msg || 'Invalid input';
+    }).join(', ');
+  } else if (typeof message !== 'string') {
+    message = 'Registration failed. Please try again.';
+  }
+
+  status.textContent = message;
+});
     });
   }
 
